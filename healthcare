@@ -1,0 +1,464 @@
+# Hospital Management System - Single File PHP Project
+
+```php
+<?php
+session_start();
+
+// DATABASE CONNECTION
+$conn = new mysqli("localhost", "root", "", "hospital_db");
+
+if ($conn->connect_error) {
+    die("Connection failed: " . $conn->connect_error);
+}
+
+// LOGIN
+if (isset($_POST['login'])) {
+    $username = $_POST['username'];
+    $password = $_POST['password'];
+
+    $sql = "SELECT * FROM users WHERE username=?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $username);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        $user = $result->fetch_assoc();
+
+        if (password_verify($password, $user['password'])) {
+            $_SESSION['user_id'] = $user['user_id'];
+            $_SESSION['username'] = $user['username'];
+            $_SESSION['role'] = $user['role'];
+        } else {
+            $error = "Invalid Password";
+        }
+    } else {
+        $error = "User Not Found";
+    }
+}
+
+// LOGOUT
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header("Location: index.php");
+    exit;
+}
+
+// REGISTER PATIENT
+if (isset($_POST['register'])) {
+    $full_name = $_POST['full_name'];
+    $username = $_POST['username'];
+    $email = $_POST['email'];
+    $phone = $_POST['phone'];
+    $gender = $_POST['gender'];
+    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+
+    $stmt = $conn->prepare("INSERT INTO users(full_name,username,email,phone,gender,password,role) VALUES(?,?,?,?,?,?,'patient')");
+    $stmt->bind_param("ssssss", $full_name, $username, $email, $phone, $gender, $password);
+
+    if ($stmt->execute()) {
+        $success = "Registration Successful";
+    }
+}
+
+// BOOK APPOINTMENT
+if (isset($_POST['book_appointment'])) {
+    $patient_id = $_SESSION['user_id'];
+    $doctor_id = $_POST['doctor_id'];
+    $appointment_date = $_POST['appointment_date'];
+    $appointment_time = $_POST['appointment_time'];
+    $reason = $_POST['reason'];
+
+    $stmt = $conn->prepare("INSERT INTO appointments(patient_id,doctor_id,appointment_date,appointment_time,reason) VALUES(?,?,?,?,?)");
+    $stmt->bind_param("iisss", $patient_id, $doctor_id, $appointment_date, $appointment_time, $reason);
+
+    if ($stmt->execute()) {
+        $appointment_success = "Appointment Booked Successfully";
+    }
+}
+
+// ADD DOCTOR
+if (isset($_POST['add_doctor'])) {
+    $full_name = $_POST['full_name'];
+    $username = $_POST['username'];
+    $email = $_POST['email'];
+    $phone = $_POST['phone'];
+    $gender = $_POST['gender'];
+    $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+
+    $stmt = $conn->prepare("INSERT INTO users(full_name,username,email,phone,gender,password,role) VALUES(?,?,?,?,?,?,'doctor')");
+    $stmt->bind_param("ssssss", $full_name, $username, $email, $phone, $gender, $password);
+
+    if ($stmt->execute()) {
+        $doctor_success = "Doctor Added Successfully";
+    }
+}
+
+// ADD BILL
+if (isset($_POST['add_bill'])) {
+    $patient_id = $_POST['patient_id'];
+    $amount = $_POST['amount'];
+    $billing_date = $_POST['billing_date'];
+
+    $stmt = $conn->prepare("INSERT INTO billing(patient_id,amount,billing_date,status) VALUES(?,?,?,'unpaid')");
+    $stmt->bind_param("ids", $patient_id, $amount, $billing_date);
+
+    if ($stmt->execute()) {
+        $bill_success = "Bill Added Successfully";
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hospital Management System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f7fb;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1000px;
+            margin: 30px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: #2c3e50;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px;
+            width: 100%;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .success {
+            color: green;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .error {
+            color: red;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table th {
+            background: #3498db;
+            color: white;
+        }
+
+        table th, table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .nav {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .nav a {
+            margin: 0 10px;
+            text-decoration: none;
+            color: #3498db;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+<?php if (!isset($_SESSION['user_id'])): ?>
+
+<h1>Hospital Management System</h1>
+
+<?php if (isset($error)): ?>
+    <div class="error"><?php echo $error; ?></div>
+<?php endif; ?>
+
+<?php if (isset($success)): ?>
+    <div class="success"><?php echo $success; ?></div>
+<?php endif; ?>
+
+<h2>Login</h2>
+<form method="POST">
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="password" name="password" placeholder="Password" required>
+    <button type="submit" name="login">Login</button>
+</form>
+
+<hr>
+
+<h2>Patient Registration</h2>
+<form method="POST">
+    <input type="text" name="full_name" placeholder="Full Name" required>
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="email" name="email" placeholder="Email" required>
+    <input type="text" name="phone" placeholder="Phone" required>
+
+    <select name="gender" required>
+        <option value="">Select Gender</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+        <option value="Other">Other</option>
+    </select>
+
+    <input type="password" name="password" placeholder="Password" required>
+
+    <button type="submit" name="register">Register</button>
+</form>
+
+<?php else: ?>
+
+<div class="nav">
+    <a href="?logout=true">Logout</a>
+</div>
+
+<h1>Welcome <?php echo $_SESSION['username']; ?></h1>
+
+<?php if ($_SESSION['role'] == 'admin'): ?>
+
+<h2>Add Doctor</h2>
+
+<?php if (isset($doctor_success)): ?>
+    <div class="success"><?php echo $doctor_success; ?></div>
+<?php endif; ?>
+
+<form method="POST">
+    <input type="text" name="full_name" placeholder="Full Name" required>
+    <input type="text" name="username" placeholder="Username" required>
+    <input type="email" name="email" placeholder="Email" required>
+    <input type="text" name="phone" placeholder="Phone" required>
+
+    <select name="gender" required>
+        <option value="">Select Gender</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+        <option value="Other">Other</option>
+    </select>
+
+    <input type="password" name="password" placeholder="Password" required>
+
+    <button type="submit" name="add_doctor">Add Doctor</button>
+</form>
+
+<hr>
+
+<h2>Add Billing</h2>
+
+<?php if (isset($bill_success)): ?>
+    <div class="success"><?php echo $bill_success; ?></div>
+<?php endif; ?>
+
+<form method="POST">
+    <select name="patient_id" required>
+        <option value="">Select Patient</option>
+        <?php
+        $patients = $conn->query("SELECT * FROM users WHERE role='patient'");
+        while($row = $patients->fetch_assoc()) {
+            echo "<option value='{$row['user_id']}'>{$row['full_name']}</option>";
+        }
+        ?>
+    </select>
+
+    <input type="number" step="0.01" name="amount" placeholder="Amount" required>
+
+    <input type="date" name="billing_date" required>
+
+    <button type="submit" name="add_bill">Generate Bill</button>
+</form>
+
+<hr>
+
+<h2>Doctors List</h2>
+<table>
+<tr>
+    <th>Name</th>
+    <th>Email</th>
+    <th>Phone</th>
+</tr>
+
+<?php
+$doctors = $conn->query("SELECT * FROM users WHERE role='doctor'");
+while($row = $doctors->fetch_assoc()) {
+?>
+<tr>
+    <td><?php echo $row['full_name']; ?></td>
+    <td><?php echo $row['email']; ?></td>
+    <td><?php echo $row['phone']; ?></td>
+</tr>
+<?php } ?>
+</table>
+
+<?php elseif ($_SESSION['role'] == 'patient'): ?>
+
+<h2>Book Appointment</h2>
+
+<?php if (isset($appointment_success)): ?>
+    <div class="success"><?php echo $appointment_success; ?></div>
+<?php endif; ?>
+
+<form method="POST">
+    <select name="doctor_id" required>
+        <option value="">Select Doctor</option>
+        <?php
+        $doctors = $conn->query("SELECT * FROM users WHERE role='doctor'");
+        while($row = $doctors->fetch_assoc()) {
+            echo "<option value='{$row['user_id']}'>{$row['full_name']}</option>";
+        }
+        ?>
+    </select>
+
+    <input type="date" name="appointment_date" required>
+
+    <input type="time" name="appointment_time" required>
+
+    <textarea name="reason" placeholder="Reason for Appointment" required></textarea>
+
+    <button type="submit" name="book_appointment">Book Appointment</button>
+</form>
+
+<hr>
+
+<h2>My Appointments</h2>
+<table>
+<tr>
+    <th>Doctor</th>
+    <th>Date</th>
+    <th>Time</th>
+    <th>Reason</th>
+</tr>
+
+<?php
+$patient_id = $_SESSION['user_id'];
+
+$query = "SELECT appointments.*, users.full_name AS doctor_name
+          FROM appointments
+          JOIN users ON appointments.doctor_id = users.user_id
+          WHERE appointments.patient_id = '$patient_id'";
+
+$result = $conn->query($query);
+
+while($row = $result->fetch_assoc()) {
+?>
+<tr>
+    <td><?php echo $row['doctor_name']; ?></td>
+    <td><?php echo $row['appointment_date']; ?></td>
+    <td><?php echo $row['appointment_time']; ?></td>
+    <td><?php echo $row['reason']; ?></td>
+</tr>
+<?php } ?>
+</table>
+
+<?php elseif ($_SESSION['role'] == 'doctor'): ?>
+
+<h2>Doctor Appointments</h2>
+
+<table>
+<tr>
+    <th>Patient</th>
+    <th>Date</th>
+    <th>Time</th>
+    <th>Reason</th>
+</tr>
+
+<?php
+$doctor_id = $_SESSION['user_id'];
+
+$query = "SELECT appointments.*, users.full_name AS patient_name
+          FROM appointments
+          JOIN users ON appointments.patient_id = users.user_id
+          WHERE appointments.doctor_id = '$doctor_id'";
+
+$result = $conn->query($query);
+
+while($row = $result->fetch_assoc()) {
+?>
+<tr>
+    <td><?php echo $row['patient_name']; ?></td>
+    <td><?php echo $row['appointment_date']; ?></td>
+    <td><?php echo $row['appointment_time']; ?></td>
+    <td><?php echo $row['reason']; ?></td>
+</tr>
+<?php } ?>
+</table>
+
+<?php endif; ?>
+
+<?php endif; ?>
+
+</div>
+
+</body>
+</html>
+```
+
+## Database Tables Needed
+
+```sql
+CREATE TABLE users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(100),
+    username VARCHAR(100) UNIQUE,
+    email VARCHAR(100),
+    phone VARCHAR(20),
+    gender VARCHAR(20),
+    password VARCHAR(255),
+    role VARCHAR(20)
+);
+
+CREATE TABLE appointments (
+    appointment_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT,
+    doctor_id INT,
+    appointment_date DATE,
+    appointment_time TIME,
+    reason TEXT,
+    FOREIGN KEY (patient_id) REFERENCES users(user_id),
+    FOREIGN KEY (doctor_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE billing (
+    billing_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT,
+    amount DECIMAL(10,2),
+    billing_date DATE,
+    status VARCHAR(20),
+    FOREIGN KEY (patient_id) REFERENCES users(user_id)
+);
